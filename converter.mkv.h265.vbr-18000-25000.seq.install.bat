@@ -24,5 +24,3 @@ for %%F in (%fileTypes%) do (
 )
 
 endlocal
-
-pause
