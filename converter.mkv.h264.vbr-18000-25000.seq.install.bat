@@ -1,23 +1,27 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
-:: 获取当前批处理文件的路径
-for %%I in ("%~dp0converter.mp4.h264.vbr-18000-25000.seq.bat") do set "scriptPath=%%~fI"
+:: 获取批处理文件的路径
+for %%I in ("%~dp0converter.mkv.h264.vbr-18000-25000.seq.bat") do set "scriptPath=%%~fI"
 
-:: 注册表键名
-set "keyName=HKCR\SystemFileAssociations\.mkv\shell\FFmpeg Convert to MKV H.264 VBR-18000-25000\command"
+:: 文件类型数组
+set "fileTypes=.mkv .mp4 .avi .mov"
 
-:: 命令行
-set "command=""%scriptPath%"" ""%%V"""
+:: 遍历文件类型
+for %%F in (%fileTypes%) do (
+    :: 注册表键的路径
+    set "keyName=HKCR\SystemFileAssociations\%%F\shell\FFmpeg convert to..."
+    set "subKeyName=HKCR\SystemFileAssociations\%%F\shell\FFmpeg convert to...\shell\MKV H.264 VBR-18000-25000"
 
-:: 将命令添加到右键菜单
-reg add "%keyName%" /ve /d "%command%" /f
+    :: 创建一级菜单注册表键
+    reg add "!keyName!" /v "Icon" /t REG_SZ /d "%SystemRoot%\system32\shell32.dll,5" /f
+    reg add "!keyName!" /v "MUIVerb" /t REG_SZ /d "FFmpeg convert to..." /f
+    reg add "!keyName!" /v "SubCommands" /t REG_SZ /d "" /f
 
-:: 图标文件路径，这里我们使用shell32.dll中的第5个图标
-set "iconPath=%SystemRoot%\system32\shell32.dll,5"
-
-:: 将图标添加到右键菜单项
-reg add "%keyName%" /v Icon /t REG_SZ /d "%iconPath%" /f
+    :: 创建二级菜单注册表键
+    reg add "!subKeyName!" /v "MUIVerb" /t REG_SZ /d "MKV H.264 VBR-18000-25000" /f
+    reg add "!subKeyName!\command" /ve /d """%scriptPath%"" ""%%V""" /f
+)
 
 endlocal
 
