@@ -1,8 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
+set "scriptName=converter.mp4.h264.vbr-18000-25000.seq.bat"
+set "contextMenu=MP4 H.264 VBR-18000-25000"
+
 :: 获取批处理文件的路径
-for %%I in ("%~dp0converter.mp4.h264.vbr-18000-25000.seq.bat") do set "scriptPath=%%~fI"
+for %%I in ("%~dp0%scriptName%") do set "scriptPath=%%~fI"
 
 :: 文件类型数组
 set "fileTypes=.mkv .mp4 .avi .mov"
@@ -11,7 +14,7 @@ set "fileTypes=.mkv .mp4 .avi .mov"
 for %%F in (%fileTypes%) do (
     :: 注册表键的路径
     set "keyName=HKCR\SystemFileAssociations\%%F\shell\FFmpeg convert to..."
-    set "subKeyName=HKCR\SystemFileAssociations\%%F\shell\FFmpeg convert to...\shell\MP4 H.264 VBR-18000-25000"
+    set "subKeyName=HKCR\SystemFileAssociations\%%F\shell\FFmpeg convert to...\shell\!contextMenu!"
 
     :: 创建一级菜单注册表键
     reg add "!keyName!" /v "Icon" /t REG_SZ /d "%SystemRoot%\system32\shell32.dll,5" /f
@@ -19,7 +22,7 @@ for %%F in (%fileTypes%) do (
     reg add "!keyName!" /v "SubCommands" /t REG_SZ /d "" /f
 
     :: 创建二级菜单注册表键
-    reg add "!subKeyName!" /v "MUIVerb" /t REG_SZ /d "MP4 H.264 VBR-18000-25000" /f
+    reg add "!subKeyName!" /v "MUIVerb" /t REG_SZ /d "!contextMenu!" /f
     reg add "!subKeyName!\command" /ve /d """%scriptPath%"" ""%%V""" /f
 )
 

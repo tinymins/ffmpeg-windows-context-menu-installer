@@ -3,17 +3,20 @@ setlocal enabledelayedexpansion
 %~d0
 cd %~dp0
 
+set "outputSuffix=.h264"
+set "outputExtName=mp4"
+
 for %%I in (%*) do (
   set "inputFile=%%~I"
   set "inputName=%%~dpnI"
-  set "outputFile=%%~dpnI.h264.mp4"
+  set "outputFile=%%~dpnI!outputSuffix!.!outputExtName!"
   set "counter=1"
 
   echo Input File:  "!inputFile!"
 
   :loop
   if exist "!outputFile!" (
-    set "outputFile=!inputName! (!counter!).h264.mp4"
+    set "outputFile=!inputName! (!counter!)!outputSuffix!.!outputExtName!"
     set /a counter+=1
     goto :loop
   )

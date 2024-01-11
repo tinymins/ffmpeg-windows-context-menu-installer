@@ -3,17 +3,20 @@ setlocal enabledelayedexpansion
 %~d0
 cd %~dp0
 
+set "outputSuffix=.h264"
+set "outputExtName=mkv"
+
 for %%I in (%*) do (
   set "inputFile=%%~I"
   set "inputName=%%~dpnI"
-  set "outputFile=%%~dpnI.h264.mkv"
+  set "outputFile=%%~dpnI!outputSuffix!.!outputExtName!"
   set "counter=1"
 
   echo Input File:  "!inputFile!"
 
   :loop
   if exist "!outputFile!" (
-    set "outputFile=!inputName! (!counter!).h264.mkv"
+    set "outputFile=!inputName! (!counter!)!outputSuffix!.!outputExtName!"
     set /a counter+=1
     goto :loop
   )
@@ -44,7 +47,6 @@ for %%I in (%*) do (
     -c:a copy ^
     "!outputFile!"
 
-  @REM copy /B "!outputFile!" +,, & copy /B "!inputFile!" +,, "!outputFile!"
   nircmd clonefiletime "!inputFile!" "!outputFile!"
 )
 

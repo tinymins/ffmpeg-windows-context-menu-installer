@@ -3,17 +3,20 @@ setlocal enabledelayedexpansion
 %~d0
 cd %~dp0
 
+set "outputSuffix=.h265"
+set "outputExtName=mkv"
+
 for %%I in (%*) do (
   set "inputFile=%%~I"
   set "inputName=%%~dpnI"
-  set "outputFile=%%~dpnI.h265.mkv"
+  set "outputFile=%%~dpnI!outputSuffix!.!outputExtName!"
   set "counter=1"
 
   echo Input File:  "!inputFile!"
 
   :loop
   if exist "!outputFile!" (
-    set "outputFile=!inputName! (!counter!).h265.mkv"
+    set "outputFile=!inputName! (!counter!)!outputSuffix!.!outputExtName!"
     set /a counter+=1
     goto :loop
   )
