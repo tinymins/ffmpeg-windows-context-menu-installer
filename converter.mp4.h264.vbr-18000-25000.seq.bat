@@ -29,7 +29,7 @@ for %%I in (%*) do (
     -b:v 18000k ^
     -maxrate 25000k ^
     -rc:v vbr ^
-    -preset fast ^
+    -preset p7 ^
     -profile:v high ^
     -bf 4 ^
     -pass 1 ^
@@ -40,7 +40,7 @@ for %%I in (%*) do (
     -b:v 18000k ^
     -maxrate 25000k ^
     -rc:v vbr ^
-    -preset fast ^
+    -preset p7 ^
     -profile:v high ^
     -bf 4 ^
     -pass 2 ^

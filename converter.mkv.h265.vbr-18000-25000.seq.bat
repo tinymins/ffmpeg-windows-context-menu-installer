@@ -29,7 +29,7 @@ for %%I in (%*) do (
     -b:v 18000k ^
     -maxrate 25000k ^
     -rc:v vbr ^
-    -preset p3 ^
+    -preset p7 ^
     -tune hq ^
     -profile:v main ^
     -rc-lookahead 32 ^
@@ -43,7 +43,7 @@ for %%I in (%*) do (
     -b:v 18000k ^
     -maxrate 25000k ^
     -rc:v vbr ^
-    -preset p3 ^
+    -preset p7 ^
     -tune hq ^
     -profile:v main ^
     -rc-lookahead 32 ^
