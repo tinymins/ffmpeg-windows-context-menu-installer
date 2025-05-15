@@ -129,7 +129,7 @@ def process_videos_in_folder(src_folder, target_folder_base):
 
             # 获取原文件的相对路径
             relative_dir = os.path.dirname(os.path.relpath(first_video, src_folder))
-            target_folder = os.path.join(target_folder_base, 'combined', relative_dir)
+            target_folder = os.path.join(target_folder_base, relative_dir)
 
             # 创建目标文件夹
             if not os.path.exists(target_folder):
@@ -157,7 +157,7 @@ def process_videos_in_folder(src_folder, target_folder_base):
 
         for file_path in other_files:
             relative_path = os.path.relpath(file_path, src_folder)
-            target_file_path = os.path.join(target_folder_base, 'combined', relative_path)
+            target_file_path = os.path.join(target_folder_base, relative_path)
             target_dir = os.path.dirname(target_file_path)
 
             # 确保目标目录存在
@@ -178,6 +178,7 @@ def process_videos_in_folder(src_folder, target_folder_base):
 
 if __name__ == "__main__":
     src_folder = input("Please enter the source folder path: ")
-    target_folder_base = os.getcwd()  # 默认使用当前工作目录作为目标文件夹的基路径
-    print(f"Output files will be placed in: {os.path.join(target_folder_base, 'combined')}")
+    target_folder_base = os.path.join(os.path.dirname(src_folder), f'{os.path.basename(src_folder)}_Combined')
+    print(f"Output files will be placed in: {target_folder_base}")
     process_videos_in_folder(src_folder, target_folder_base)
+    os.system('pause')
