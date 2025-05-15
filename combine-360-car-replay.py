@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime
 
 def extract_datetime_from_filename(filename):
-    match = re.match(r"(\d{14})_.*\.MP4", filename)
+    match = re.match(r"(\d{14})_.*\.MP4", filename, re.IGNORECASE)
     if match:
         return datetime.strptime(match.group(1), "%Y%m%d%H%M%S")
     return None
@@ -62,9 +62,8 @@ def group_videos_by_time(video_camera_groups, max_time_difference=120):
 
     return final_groups
 
-def check_combined_file_exists(target_folder, file_name):
-    combined_file_path = os.path.join(target_folder, file_name)
-    return os.path.exists(combined_file_path)
+def check_file_exists(file_path):
+    return os.path.exists(file_path)
 
 def merge_videos(video_group, combined_file):
     if len(video_group) == 1:
@@ -90,58 +89,95 @@ def merge_videos(video_group, combined_file):
     print("Merge complete.")
 
 def process_videos_in_folder(src_folder, target_folder_base):
-    all_mp4_files = []
+    mp4_files = []
+    other_files = []
 
-    # 首先收集所有MP4文件
+    # 收集所有文件
+    print("Scanning for files...")
     for dirpath, _, files in os.walk(src_folder):
-        mp4_files = [os.path.join(dirpath, f) for f in files if f.endswith('.MP4')]
-        all_mp4_files.extend(mp4_files)
+        for filename in files:
+            full_path = os.path.join(dirpath, filename)
+            if filename.lower().endswith('.mp4'):
+                mp4_files.append(full_path)
+            else:
+                # 确保不是文件夹（虽然在files列表中不会有文件夹，为了代码健壮性）
+                if os.path.isfile(full_path):
+                    other_files.append(full_path)
 
-    print(f"Found {len(all_mp4_files)} MP4 files in total.")
+    print(f"Found {len(mp4_files)} MP4 files and {len(other_files)} other files.")
 
-    # 按照摄像机ID进行初始分组
-    camera_groups = group_videos_by_camera(all_mp4_files)
-    print(f"Files divided into {len(camera_groups)} different camera groups.")
+    # 处理MP4文件
+    if mp4_files:
+        # 按照摄像机ID进行初始分组
+        camera_groups = group_videos_by_camera(mp4_files)
+        print(f"MP4 files divided into {len(camera_groups)} different camera groups.")
 
-    # 进一步按照时间关系进行分组
-    grouped_videos = group_videos_by_time(camera_groups)
-    total_groups = len(grouped_videos)
-    print(f"Total video groups to process: {total_groups}")
+        # 进一步按照时间关系进行分组
+        grouped_videos = group_videos_by_time(camera_groups)
+        total_groups = len(grouped_videos)
+        print(f"Total video groups to process: {total_groups}")
 
-    processed_groups = 0
+        processed_groups = 0
 
-    # 处理每个视频组
-    for group in grouped_videos:
-        processed_groups += 1
+        # 处理每个视频组
+        for group in grouped_videos:
+            processed_groups += 1
 
-        # 获取该组的第一个视频文件
-        first_video = group[0]
-        first_video_basename = os.path.basename(first_video)
-        first_video_datetime = extract_datetime_from_filename(first_video_basename)
+            # 获取该组的第一个视频文件
+            first_video = group[0]
+            first_video_basename = os.path.basename(first_video)
 
-        # 获取原文件的相对路径
-        relative_dir = os.path.dirname(os.path.relpath(first_video, src_folder))
-        target_folder = os.path.join(target_folder_base, 'combined', relative_dir)
+            # 获取原文件的相对路径
+            relative_dir = os.path.dirname(os.path.relpath(first_video, src_folder))
+            target_folder = os.path.join(target_folder_base, 'combined', relative_dir)
 
-        # 创建目标文件夹
-        if not os.path.exists(target_folder):
-            os.makedirs(target_folder)
+            # 创建目标文件夹
+            if not os.path.exists(target_folder):
+                os.makedirs(target_folder)
 
-        # 构建输出文件名 - 使用完整的原始文件名
-        combined_file_name = os.path.basename(first_video)
-        combined_file_path = os.path.join(target_folder, combined_file_name)
+            # 构建输出文件名 - 使用完整的原始文件名
+            combined_file_name = os.path.basename(first_video)
+            combined_file_path = os.path.join(target_folder, combined_file_name)
 
-        print(f"\nProcessing group {processed_groups}/{total_groups}: {combined_file_name}")
-        print(f"Group contains {len(group)} files")
+            print(f"\nProcessing group {processed_groups}/{total_groups}: {combined_file_name}")
+            print(f"Group contains {len(group)} files")
 
-        if not check_combined_file_exists(target_folder, combined_file_name):
-            merge_videos(group, combined_file_path)
-        else:
-            print(f"Combined file already exists for group starting with {combined_file_name}, skipping...")
+            if not check_file_exists(combined_file_path):
+                merge_videos(group, combined_file_path)
+            else:
+                print(f"Combined file already exists: {combined_file_path}, skipping...")
 
-    print(f"\nProcessing completed. {processed_groups} groups processed.")
+        print(f"\nMP4 processing completed. {processed_groups} groups processed.")
+
+    # 处理其他类型文件
+    if other_files:
+        print("\nProcessing other file types...")
+        copied_count = 0
+        skipped_count = 0
+
+        for file_path in other_files:
+            relative_path = os.path.relpath(file_path, src_folder)
+            target_file_path = os.path.join(target_folder_base, 'combined', relative_path)
+            target_dir = os.path.dirname(target_file_path)
+
+            # 确保目标目录存在
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
+
+            if not check_file_exists(target_file_path):
+                print(f"Copying: {relative_path}")
+                shutil.copy2(file_path, target_file_path)
+                copied_count += 1
+            else:
+                print(f"File already exists: {relative_path}, skipping...")
+                skipped_count += 1
+
+        print(f"\nOther files processing completed. {copied_count} files copied, {skipped_count} files skipped.")
+
+    print("\nAll processing completed successfully!")
 
 if __name__ == "__main__":
-    src_folder = input("Please enter the video folder path: ")
-    target_folder_base = os.getcwd()  # Change this if you want a different base directory for combined files
+    src_folder = input("Please enter the source folder path: ")
+    target_folder_base = os.getcwd()  # 默认使用当前工作目录作为目标文件夹的基路径
+    print(f"Output files will be placed in: {os.path.join(target_folder_base, 'combined')}")
     process_videos_in_folder(src_folder, target_folder_base)
