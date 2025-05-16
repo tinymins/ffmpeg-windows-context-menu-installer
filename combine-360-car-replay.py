@@ -65,6 +65,33 @@ def group_videos_by_time(video_camera_groups, max_time_difference=120):
 def check_file_exists(file_path):
     return os.path.exists(file_path)
 
+def create_combined_filename(first_video, last_video):
+    """创建合并后的文件名，格式为：第一个视频时间_最后一个视频时间_其余部分.MP4"""
+    first_basename = os.path.basename(first_video)
+    last_basename = os.path.basename(last_video)
+
+    # 提取第一个视频的时间戳
+    first_time_match = re.match(r"(\d{14})_(.*\.MP4)", first_basename, re.IGNORECASE)
+    if not first_time_match:
+        return first_basename  # 如果无法提取，返回原始文件名
+
+    first_timestamp = first_time_match.group(1)
+
+    # 提取最后一个视频的时间戳
+    last_time_match = re.match(r"(\d{14})_(.*\.MP4)", last_basename, re.IGNORECASE)
+    if not last_time_match:
+        return first_basename  # 如果无法提取，返回原始文件名
+
+    last_timestamp = last_time_match.group(1)
+
+    # 提取第一个视频文件名的其余部分
+    rest_of_filename = first_time_match.group(2)
+
+    # 构建新的文件名
+    new_filename = f"{first_timestamp}_{last_timestamp}_{rest_of_filename}"
+
+    return new_filename
+
 def merge_videos(video_group, combined_file):
     # 获取最后一个视频文件的时间属性
     last_video = video_group[-1]
@@ -92,7 +119,7 @@ def merge_videos(video_group, combined_file):
 
     subprocess.run(command, check=True)
     os.remove("concat_list.txt")
-    
+
     # 设置合并后文件的时间属性为最后一个视频文件的时间属性
     os.utime(combined_file, (last_access_time, last_mod_time))
     print("Merge complete. File timestamps set to match the last video segment.")
@@ -132,9 +159,9 @@ def process_videos_in_folder(src_folder, target_folder_base):
         for group in grouped_videos:
             processed_groups += 1
 
-            # 获取该组的第一个视频文件
+            # 获取该组的第一个视频文件和最后一个视频文件
             first_video = group[0]
-            first_video_basename = os.path.basename(first_video)
+            last_video = group[-1]
 
             # 获取原文件的相对路径
             relative_dir = os.path.dirname(os.path.relpath(first_video, src_folder))
@@ -144,8 +171,8 @@ def process_videos_in_folder(src_folder, target_folder_base):
             if not os.path.exists(target_folder):
                 os.makedirs(target_folder)
 
-            # 构建输出文件名 - 使用完整的原始文件名
-            combined_file_name = os.path.basename(first_video)
+            # 构建输出文件名 - 使用新的命名格式
+            combined_file_name = create_combined_filename(first_video, last_video)
             combined_file_path = os.path.join(target_folder, combined_file_name)
 
             print(f"\nProcessing group {processed_groups}/{total_groups}: {combined_file_name}")
