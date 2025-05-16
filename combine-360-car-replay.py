@@ -66,6 +66,12 @@ def check_file_exists(file_path):
     return os.path.exists(file_path)
 
 def merge_videos(video_group, combined_file):
+    # 获取最后一个视频文件的时间属性
+    last_video = video_group[-1]
+    last_video_stats = os.stat(last_video)
+    last_access_time = last_video_stats.st_atime
+    last_mod_time = last_video_stats.st_mtime
+
     if len(video_group) == 1:
         # Copy the single file directly
         print(f"Copying single file: {video_group[0]} to {combined_file}")
@@ -86,7 +92,10 @@ def merge_videos(video_group, combined_file):
 
     subprocess.run(command, check=True)
     os.remove("concat_list.txt")
-    print("Merge complete.")
+    
+    # 设置合并后文件的时间属性为最后一个视频文件的时间属性
+    os.utime(combined_file, (last_access_time, last_mod_time))
+    print("Merge complete. File timestamps set to match the last video segment.")
 
 def process_videos_in_folder(src_folder, target_folder_base):
     mp4_files = []
