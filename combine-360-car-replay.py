@@ -5,16 +5,32 @@ import subprocess
 from datetime import datetime
 
 def extract_datetime_from_filename(filename):
+    # 原有格式：20250419195801_000785AC.MP4
     match = re.match(r"(\d{14})_.*\.MP4", filename, re.IGNORECASE)
     if match:
         return datetime.strptime(match.group(1), "%Y%m%d%H%M%S")
+
+    # 新格式：NO20200101-001521-002110B.mp4
+    match = re.match(r"[A-Za-z]+(\d{8})-(\d{6})-\d+[A-Za-z]+\.MP4", filename, re.IGNORECASE)
+    if match:
+        date_str = match.group(1)
+        time_str = match.group(2)
+        datetime_str = date_str + time_str
+        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S")
+
     return None
 
 def extract_camera_id(filename):
-    # 提取文件名中的摄像机ID/通道标识，例如从 "20250419195801_000785AC.MP4" 提取 "AC"
+    # 原有格式：从 "20250419195801_000785AC.MP4" 提取 "AC"
     match = re.match(r"\d{14}_\d+([A-Z]+)\.MP4", filename, re.IGNORECASE)
     if match:
         return match.group(1)
+
+    # 新格式：从 "NO20200101-001521-002110B.mp4" 提取 "B"
+    match = re.match(r"[A-Za-z]+\d{8}-\d{6}-\d+([A-Za-z]+)\.MP4", filename, re.IGNORECASE)
+    if match:
+        return match.group(1)
+
     return None
 
 def group_videos_by_camera(videos):
@@ -70,27 +86,30 @@ def create_combined_filename(first_video, last_video):
     first_basename = os.path.basename(first_video)
     last_basename = os.path.basename(last_video)
 
-    # 提取第一个视频的时间戳
-    first_time_match = re.match(r"(\d{14})_(.*\.MP4)", first_basename, re.IGNORECASE)
-    if not first_time_match:
-        return first_basename  # 如果无法提取，返回原始文件名
+    first_datetime = extract_datetime_from_filename(first_basename)
+    last_datetime = extract_datetime_from_filename(last_basename)
 
-    first_timestamp = first_time_match.group(1)
+    if not first_datetime or not last_datetime:
+        return first_basename  # 如果无法提取时间，返回原始文件名
 
-    # 提取最后一个视频的时间戳
-    last_time_match = re.match(r"(\d{14})_(.*\.MP4)", last_basename, re.IGNORECASE)
-    if not last_time_match:
-        return first_basename  # 如果无法提取，返回原始文件名
+    # 将datetime对象转换为字符串格式
+    first_timestamp = first_datetime.strftime("%Y%m%d%H%M%S")
+    last_timestamp = last_datetime.strftime("%Y%m%d%H%M%S")
 
-    last_timestamp = last_time_match.group(1)
+    # 处理原有格式：20250419195801_000785AC.MP4
+    first_time_match = re.match(r"\d{14}_(.+\.MP4)", first_basename, re.IGNORECASE)
+    if first_time_match:
+        rest_of_filename = first_time_match.group(1)
+        return f"{first_timestamp}_{last_timestamp}_{rest_of_filename}"
 
-    # 提取第一个视频文件名的其余部分
-    rest_of_filename = first_time_match.group(2)
+    # 处理新格式：NO20200101-001521-002110B.mp4
+    new_format_match = re.match(r"[A-Za-z]+\d{8}-\d{6}-(\d+[A-Za-z]+\.MP4)", first_basename, re.IGNORECASE)
+    if new_format_match:
+        rest_of_filename = new_format_match.group(1)
+        return f"{first_timestamp}_{last_timestamp}_{rest_of_filename}"
 
-    # 构建新的文件名
-    new_filename = f"{first_timestamp}_{last_timestamp}_{rest_of_filename}"
-
-    return new_filename
+    # 如果都不匹配，返回原始文件名
+    return first_basename
 
 def merge_videos(video_group, combined_file):
     # 获取最后一个视频文件的时间属性
