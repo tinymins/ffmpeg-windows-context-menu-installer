@@ -4,13 +4,23 @@ import shutil
 import subprocess
 from datetime import datetime
 
+class VideoInfo:
+    def __init__(self, datetime_obj=None, rest_of_filename=None, max_time_difference=None):
+        self.datetime = datetime_obj
+        self.rest_of_filename = rest_of_filename
+        self.max_time_difference = max_time_difference
+
 def parse_video_filename(filename):
     # 原有格式：20250419195801_000785AC.MP4
     match = re.match(r"(\d{14})_(.+\.MP4)", filename, re.IGNORECASE)
     if match:
         datetime_str = match.group(1)
         rest_of_filename = match.group(2)
-        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S"), rest_of_filename, 120
+        return VideoInfo(
+            datetime_obj=datetime.strptime(datetime_str, "%Y%m%d%H%M%S"),
+            rest_of_filename=rest_of_filename,
+            max_time_difference=120
+        )
 
     # 新格式：NO20200101-001521-002110B.mp4
     match = re.match(r"[A-Za-z]+(\d{8})-(\d{6})-(\d+[A-Za-z]+\.MP4)", filename, re.IGNORECASE)
@@ -19,9 +29,13 @@ def parse_video_filename(filename):
         time_str = match.group(2)
         rest_of_filename = match.group(3)
         datetime_str = date_str + time_str
-        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S"), rest_of_filename, 200
+        return VideoInfo(
+            datetime_obj=datetime.strptime(datetime_str, "%Y%m%d%H%M%S"),
+            rest_of_filename=rest_of_filename,
+            max_time_difference=200
+        )
 
-    return None, None, None
+    return VideoInfo()
 
 def extract_camera_id(filename):
     # 原有格式：从 "20250419195801_000785AC.MP4" 提取 "AC"
@@ -63,12 +77,12 @@ def group_videos_by_time(video_camera_groups):
                 current_group.append(video)
                 continue
 
-            current_time, _, max_time_difference = parse_video_filename(os.path.basename(video))
-            previous_time, _, _ = parse_video_filename(os.path.basename(video_series[i - 1]))
+            current_info = parse_video_filename(os.path.basename(video))
+            previous_info = parse_video_filename(os.path.basename(video_series[i - 1]))
 
-            if current_time and previous_time:
-                time_diff = (current_time - previous_time).total_seconds()
-                if time_diff <= max_time_difference:
+            if current_info.datetime and previous_info.datetime:
+                time_diff = (current_info.datetime - previous_info.datetime).total_seconds()
+                if time_diff <= current_info.max_time_difference:
                     current_group.append(video)
                 else:
                     time_grouped.append(current_group)
@@ -89,17 +103,17 @@ def create_combined_filename(first_video, last_video):
     first_basename = os.path.basename(first_video)
     last_basename = os.path.basename(last_video)
 
-    first_datetime, first_rest, _ = parse_video_filename(first_basename)
-    last_datetime, _, _ = parse_video_filename(last_basename)
+    first_info = parse_video_filename(first_basename)
+    last_info = parse_video_filename(last_basename)
 
-    if not first_datetime or not last_datetime:
+    if not first_info.datetime or not last_info.datetime:
         return first_basename  # 如果无法提取时间，返回原始文件名
 
     # 将datetime对象转换为字符串格式
-    first_timestamp = first_datetime.strftime("%Y%m%d%H%M%S")
-    last_timestamp = last_datetime.strftime("%Y%m%d%H%M%S")
+    first_timestamp = first_info.datetime.strftime("%Y%m%d%H%M%S")
+    last_timestamp = last_info.datetime.strftime("%Y%m%d%H%M%S")
 
-    return f"{first_timestamp}_{last_timestamp}_{first_rest}"
+    return f"{first_timestamp}_{last_timestamp}_{first_info.rest_of_filename}"
 
 def merge_videos(video_group, combined_file):
     # 获取最后一个视频文件的时间属性
