@@ -10,7 +10,7 @@ def parse_video_filename(filename):
     if match:
         datetime_str = match.group(1)
         rest_of_filename = match.group(2)
-        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S"), rest_of_filename
+        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S"), rest_of_filename, 120
 
     # 新格式：NO20200101-001521-002110B.mp4
     match = re.match(r"[A-Za-z]+(\d{8})-(\d{6})-(\d+[A-Za-z]+\.MP4)", filename, re.IGNORECASE)
@@ -19,9 +19,9 @@ def parse_video_filename(filename):
         time_str = match.group(2)
         rest_of_filename = match.group(3)
         datetime_str = date_str + time_str
-        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S"), rest_of_filename
+        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S"), rest_of_filename, 200
 
-    return None, None
+    return None, None, None
 
 def extract_camera_id(filename):
     # 原有格式：从 "20250419195801_000785AC.MP4" 提取 "AC"
@@ -49,7 +49,7 @@ def group_videos_by_camera(videos):
     # 返回所有分组
     return list(camera_groups.values())
 
-def group_videos_by_time(video_camera_groups, max_time_difference=120):
+def group_videos_by_time(video_camera_groups):
     final_groups = []
 
     # 对每个摄像机组内的视频按时间进行进一步分组
@@ -63,8 +63,8 @@ def group_videos_by_time(video_camera_groups, max_time_difference=120):
                 current_group.append(video)
                 continue
 
-            current_time, _ = parse_video_filename(os.path.basename(video))
-            previous_time, _ = parse_video_filename(os.path.basename(video_series[i - 1]))
+            current_time, _, max_time_difference = parse_video_filename(os.path.basename(video))
+            previous_time, _, _ = parse_video_filename(os.path.basename(video_series[i - 1]))
 
             if current_time and previous_time:
                 time_diff = (current_time - previous_time).total_seconds()
@@ -89,8 +89,8 @@ def create_combined_filename(first_video, last_video):
     first_basename = os.path.basename(first_video)
     last_basename = os.path.basename(last_video)
 
-    first_datetime, first_rest = parse_video_filename(first_basename)
-    last_datetime, _ = parse_video_filename(last_basename)
+    first_datetime, first_rest, _ = parse_video_filename(first_basename)
+    last_datetime, _, _ = parse_video_filename(last_basename)
 
     if not first_datetime or not last_datetime:
         return first_basename  # 如果无法提取时间，返回原始文件名
