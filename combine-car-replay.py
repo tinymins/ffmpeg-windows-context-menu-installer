@@ -151,22 +151,23 @@ def process_videos_in_folder(src_folder, target_folder_base):
     mp4_files = []
     other_files = []
 
-    # 收集所有文件
+    # 优化扫描文件速度，使用os.scandir递归
     print("Scanning for files...")
-    for dirpath, _, files in os.walk(src_folder):
-        for filename in files:
-            full_path = os.path.join(dirpath, filename)
-            # 排除0B文件
-            if os.path.isfile(full_path) and os.path.getsize(full_path) == 0:
-                print(f"Skipping 0B file: {full_path}")
-                continue
-            if filename.lower().endswith('.mp4'):
-                mp4_files.append(full_path)
-            else:
-                # 确保不是文件夹（虽然在files列表中不会有文件夹，为了代码健壮性）
-                if os.path.isfile(full_path):
-                    other_files.append(full_path)
+    def scan_folder(folder):
+        for entry in os.scandir(folder):
+            if entry.is_dir():
+                scan_folder(entry.path)
+            elif entry.is_file():
+                # 排除0B文件
+                if entry.stat().st_size == 0:
+                    print(f"Skipping 0B file: {entry.path}")
+                    continue
+                if entry.name.lower().endswith('.mp4'):
+                    mp4_files.append(entry.path)
+                else:
+                    other_files.append(entry.path)
 
+    scan_folder(src_folder)
     print(f"Found {len(mp4_files)} MP4 files and {len(other_files)} other files.")
 
     # 处理MP4文件
