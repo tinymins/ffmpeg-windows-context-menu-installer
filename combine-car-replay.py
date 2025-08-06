@@ -156,6 +156,10 @@ def process_videos_in_folder(src_folder, target_folder_base):
     for dirpath, _, files in os.walk(src_folder):
         for filename in files:
             full_path = os.path.join(dirpath, filename)
+            # 排除0B文件
+            if os.path.isfile(full_path) and os.path.getsize(full_path) == 0:
+                print(f"Skipping 0B file: {full_path}")
+                continue
             if filename.lower().endswith('.mp4'):
                 mp4_files.append(full_path)
             else:
