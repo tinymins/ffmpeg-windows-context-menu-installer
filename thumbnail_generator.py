@@ -4,8 +4,8 @@ Generate contact sheet thumbnails for one or more video files.
 The script accepts the following parameters (command-line flags or interactive input):
 - M / --cols: number of thumbnails per row
 - N / --rows: number of thumbnails per column
-- W / --width: width of each thumbnail in pixels
-- H / --height: height of each thumbnail in pixels
+- W / --width: maximum thumbnail width in pixels
+- H / --height: maximum thumbnail height in pixels
 
 Usage examples:
     python thumbnail_generator.py -M 4 -N 5 -W 320 -H 180 video.mp4
@@ -51,14 +51,14 @@ def parse_args() -> argparse.Namespace:
         "--width",
         type=int,
         default=320,
-        help="Thumbnail width in pixels (default: 320).",
+        help="Maximum thumbnail width in pixels (default: 320).",
     )
     parser.add_argument(
         "-H",
         "--height",
         type=int,
         default=180,
-        help="Thumbnail height in pixels (default: 180).",
+        help="Maximum thumbnail height in pixels (default: 180).",
     )
     return parser.parse_args()
 
@@ -148,6 +148,63 @@ def get_video_duration(video: Path, ffprobe_path: str) -> float:
     return duration
 
 
+def get_video_dimensions(video: Path, ffprobe_path: str) -> tuple[int, int]:
+    command = [
+        ffprobe_path,
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=p=0:s=x",
+        str(video),
+    ]
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or "无法获取视频分辨率。"
+        raise RuntimeError(message)
+    text = result.stdout.strip()
+    if not text:
+        raise RuntimeError("未从 ffprobe 获得视频分辨率。")
+    line = text.splitlines()[0]
+    parts = line.split("x")
+    if len(parts) != 2:
+        raise RuntimeError("ffprobe 返回的分辨率格式无效。")
+    try:
+        width = int(parts[0])
+        height = int(parts[1])
+    except ValueError as exc:  # noqa: BLE001
+        raise RuntimeError("ffprobe 返回的分辨率无效。") from exc
+    if width <= 0 or height <= 0:
+        raise RuntimeError("视频分辨率无效。")
+    return width, height
+
+
+def compute_scaled_dimensions(
+    source_width: int,
+    source_height: int,
+    max_width: int,
+    max_height: int,
+) -> tuple[int, int]:
+    if source_width <= 0 or source_height <= 0:
+        raise ValueError("视频分辨率无效。")
+    width_scale = max_width / source_width
+    height_scale = max_height / source_height
+    scale = min(width_scale, height_scale)
+    if scale <= 0:
+        raise ValueError("无法根据设定的最大尺寸计算缩略图大小。")
+    scaled_width = max(1, min(max_width, int(source_width * scale)))
+    scaled_height = max(1, min(max_height, int(source_height * scale)))
+    return scaled_width, scaled_height
+
+
 def compute_time_points(duration: float, total_frames: int) -> List[float]:
     interval = duration / (total_frames + 1)
     return [interval * (index + 1) for index in range(total_frames)]
@@ -174,10 +231,7 @@ def extract_frame(
     height: int,
     output_path: Path,
 ) -> None:
-    vf_filter = (
-        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
-    )
+    vf_filter = f"scale={width}:{height}"
     command = [
         ffmpeg_path,
         "-loglevel",
@@ -218,14 +272,19 @@ def compose_contact_sheet(
     images: List[Image.Image],
     cols: int,
     rows: int,
-    width: int,
-    height: int,
 ) -> Image.Image:
-    sheet = Image.new("RGB", (cols * width, rows * height), color=(0, 0, 0))
+    if not images:
+        raise ValueError("没有可用的缩略图图像。")
+    thumb_width, thumb_height = images[0].size
+    sheet = Image.new(
+        "RGB",
+        (cols * thumb_width, rows * thumb_height),
+        color=(0, 0, 0),
+    )
     for index, image in enumerate(images):
         row = index // cols
         col = index % cols
-        sheet.paste(image, (col * width, row * height))
+        sheet.paste(image, (col * thumb_width, row * thumb_height))
     return sheet
 
 
@@ -300,13 +359,29 @@ def process_video(
     ffprobe_path: str,
     cols: int,
     rows: int,
-    width: int,
-    height: int,
+    max_width: int,
+    max_height: int,
 ) -> None:
+    try:
+        source_width, source_height = get_video_dimensions(video, ffprobe_path)
+    except RuntimeError as exc:
+        print(f"[{video}] 获取视频分辨率失败: {exc}")
+        return
     try:
         duration = get_video_duration(video, ffprobe_path)
     except RuntimeError as exc:
         print(f"[{video}] 获取视频时长失败: {exc}")
+        return
+
+    try:
+        thumb_width, thumb_height = compute_scaled_dimensions(
+            source_width,
+            source_height,
+            max_width,
+            max_height,
+        )
+    except ValueError as exc:
+        print(f"[{video}] 计算缩略图尺寸失败: {exc}")
         return
 
     total_frames = cols * rows
@@ -320,8 +395,8 @@ def process_video(
                     ffmpeg_path,
                     video,
                     timestamp,
-                    width,
-                    height,
+                    thumb_width,
+                    thumb_height,
                     frame_path,
                 )
             except RuntimeError as exc:
@@ -333,7 +408,7 @@ def process_video(
         except Exception as exc:  # noqa: BLE001
             print(f"[{video}] 读取缩略图图像失败: {exc}")
             return
-    contact_sheet = compose_contact_sheet(images, cols, rows, width, height)
+    contact_sheet = compose_contact_sheet(images, cols, rows)
     output_path = video.with_suffix(".png")
     try:
         contact_sheet.save(output_path)
@@ -353,8 +428,8 @@ def main() -> None:
 
     cols = ensure_positive(args.cols, "M (横向数量)", interactive)
     rows = ensure_positive(args.rows, "N (纵向数量)", interactive)
-    width = ensure_positive(args.width, "W (缩略图宽度)", interactive)
-    height = ensure_positive(args.height, "H (缩略图高度)", interactive)
+    max_width = ensure_positive(args.width, "W (缩略图最大宽度)", interactive)
+    max_height = ensure_positive(args.height, "H (缩略图最大高度)", interactive)
 
     videos = [Path(entry).expanduser() for entry in args.videos]
     if not videos:
@@ -385,8 +460,8 @@ def main() -> None:
             ffprobe_path,
             cols,
             rows,
-            width,
-            height,
+            max_width,
+            max_height,
         )
 
 
