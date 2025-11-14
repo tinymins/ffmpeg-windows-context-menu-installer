@@ -6,9 +6,11 @@ The script accepts these parameters (flags or interactive input):
 - N / --rows: number of thumbnails per column
 - W / --width: maximum thumbnail width in pixels
 - H / --height: maximum thumbnail height in pixels
+- --gap: spacing between thumbnails in pixels
+- --margin: outer border around the contact sheet
 
 Usage examples:
-    python thumbnail_generator.py -M 4 -N 5 -W 320 -H 180 video.mp4
+    python thumbnail_generator.py -M 4 -N 5 -W 320 -H 180 --gap 5 video.mp4
     python thumbnail_generator.py (drag videos onto the script)
 """
 
@@ -80,6 +82,18 @@ def parse_args() -> argparse.Namespace:
         default=180,
         help="Maximum thumbnail height in pixels (default: 180).",
     )
+    parser.add_argument(
+        "--gap",
+        type=int,
+        default=5,
+        help="Spacing between thumbnails in pixels (default: 5).",
+    )
+    parser.add_argument(
+        "--margin",
+        type=int,
+        default=5,
+        help="Outer margin around contact sheet in pixels (default: 5).",
+    )
     return parser.parse_args()
 
 
@@ -97,6 +111,30 @@ def ensure_positive(value: int | None, label: str, interactive: bool) -> int:
         try:
             candidate = int(raw)
             if candidate <= 0:
+                raise ValueError
+            return candidate
+        except ValueError:
+            print("输入无效，请重新输入。")
+
+
+def ensure_non_negative(
+    value: int | None,
+    label: str,
+    interactive: bool,
+) -> int:
+    if value is not None:
+        if value < 0:
+            print(f"参数 {label} 不能为负数。", file=sys.stderr)
+            sys.exit(2)
+        return value
+    if not interactive:
+        print(f"缺少参数 {label}。", file=sys.stderr)
+        sys.exit(2)
+    while True:
+        raw = input(f"请输入 {label} (非负整数): ").strip()
+        try:
+            candidate = int(raw)
+            if candidate < 0:
                 raise ValueError
             return candidate
         except ValueError:
@@ -292,19 +330,25 @@ def compose_contact_sheet(
     images: List[Image.Image],
     cols: int,
     rows: int,
+    gap: int,
+    margin: int,
 ) -> Image.Image:
     if not images:
         raise ValueError("没有可用的缩略图图像。")
     thumb_width, thumb_height = images[0].size
+    sheet_width = cols * thumb_width + (cols - 1) * gap + 2 * margin
+    sheet_height = rows * thumb_height + (rows - 1) * gap + 2 * margin
     sheet = Image.new(
         "RGB",
-        (cols * thumb_width, rows * thumb_height),
+        (sheet_width, sheet_height),
         color=(0, 0, 0),
     )
     for index, image in enumerate(images):
         row = index // cols
         col = index % cols
-        sheet.paste(image, (col * thumb_width, row * thumb_height))
+        x_offset = margin + col * (thumb_width + gap)
+        y_offset = margin + row * (thumb_height + gap)
+        sheet.paste(image, (x_offset, y_offset))
     return sheet
 
 
@@ -381,6 +425,8 @@ def process_video(
     rows: int,
     max_width: int,
     max_height: int,
+    gap: int,
+    margin: int,
 ) -> None:
     try:
         source_width, source_height = get_video_dimensions(video, ffprobe_path)
@@ -428,7 +474,7 @@ def process_video(
         except Exception as exc:  # noqa: BLE001
             print(f"[{video}] 读取缩略图图像失败: {exc}")
             return
-    contact_sheet = compose_contact_sheet(images, cols, rows)
+    contact_sheet = compose_contact_sheet(images, cols, rows, gap, margin)
     output_path = video.with_suffix(".png")
     try:
         contact_sheet.save(output_path)
@@ -450,6 +496,8 @@ def main() -> None:
     rows = ensure_positive(args.rows, "N (纵向数量)", interactive)
     max_width = ensure_positive(args.width, "W (缩略图最大宽度)", interactive)
     max_height = ensure_positive(args.height, "H (缩略图最大高度)", interactive)
+    gap = ensure_non_negative(args.gap, "间隔像素", interactive)
+    margin = ensure_non_negative(args.margin, "外边距像素", interactive)
 
     videos = [Path(entry).expanduser() for entry in args.videos]
     if not videos:
@@ -489,6 +537,8 @@ def main() -> None:
             rows,
             max_width,
             max_height,
+            gap,
+            margin,
         )
 
 
