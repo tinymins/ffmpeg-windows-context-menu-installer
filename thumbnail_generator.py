@@ -1,7 +1,7 @@
 """
 Generate contact sheet thumbnails for one or more video files.
 
-The script accepts the following parameters (command-line flags or interactive input):
+The script accepts these parameters (flags or interactive input):
 - M / --cols: number of thumbnails per row
 - N / --rows: number of thumbnails per column
 - W / --width: maximum thumbnail width in pixels
@@ -9,7 +9,7 @@ The script accepts the following parameters (command-line flags or interactive i
 
 Usage examples:
     python thumbnail_generator.py -M 4 -N 5 -W 320 -H 180 video.mp4
-    python thumbnail_generator.py (drag-and-drop one or more videos onto the script)
+    python thumbnail_generator.py (drag videos onto the script)
 """
 
 from __future__ import annotations
@@ -25,6 +25,26 @@ from pathlib import Path
 from typing import Iterable, List
 
 from PIL import Image
+
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".mkv",
+    ".mov",
+    ".avi",
+    ".wmv",
+    ".flv",
+    ".ts",
+    ".m4v",
+    ".webm",
+    ".mpg",
+    ".mpeg",
+    ".3gp",
+    ".m2ts",
+    ".mts",
+    ".ogv",
+    ".vob",
+    ".f4v",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -453,6 +473,13 @@ def main() -> None:
         )
         if not resolved.exists() or not resolved.is_file():
             print(f"文件不存在: {resolved}")
+            continue
+        if resolved.suffix.lower() not in VIDEO_EXTENSIONS:
+            print(f"不支持的文件类型，已跳过: {resolved}")
+            continue
+        output_path = resolved.with_suffix(".png")
+        if output_path.exists():
+            print(f"输出文件已存在，已跳过: {output_path}")
             continue
         process_video(
             resolved,
