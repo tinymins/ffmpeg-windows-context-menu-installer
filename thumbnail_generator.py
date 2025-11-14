@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -141,15 +142,35 @@ def ensure_non_negative(
             print("输入无效，请重新输入。")
 
 
+def strip_wrapping_quotes(text: str) -> str:
+    stripped = text.strip()
+    if (
+        len(stripped) >= 2
+        and stripped[0] == stripped[-1]
+        and stripped[0] in {"'", '"'}
+    ):
+        return stripped[1:-1]
+    return stripped
+
+
 def prompt_for_videos(interactive: bool) -> List[Path]:
     if not interactive:
         print("未提供视频文件路径。", file=sys.stderr)
         sys.exit(2)
     raw = input("请输入视频文件路径，多个文件使用分号分隔: ").strip()
+    if not raw:
+        print("未提供视频文件路径。", file=sys.stderr)
+        sys.exit(2)
+    normalized = raw.replace(";", " ")
+    try:
+        tokens = shlex.split(normalized, posix=False)
+    except ValueError:
+        print("输入格式无效，请检查路径引用。", file=sys.stderr)
+        sys.exit(2)
     entries = [
-        segment.strip().strip('"')
-        for segment in raw.split(";")
-        if segment.strip()
+        strip_wrapping_quotes(token)
+        for token in tokens
+        if token.strip()
     ]
     if not entries:
         print("未提供视频文件路径。", file=sys.stderr)
